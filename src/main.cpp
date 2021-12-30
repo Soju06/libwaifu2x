@@ -6,11 +6,6 @@
 #include <vector>
 #include <clocale>
 
-#if _WIN32
-// image decoder and encoder with wic
-#include "wic_image.h"
-#else // _WIN32
-// image decoder and encoder with stb
 #define STB_IMAGE_IMPLEMENTATION
 #define STBI_NO_PSD
 #define STBI_NO_TGA
@@ -21,8 +16,6 @@
 #include "stb_image.h"
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
-#endif // _WIN32
-#include "webp_image.h"
 
 #if _WIN32
 #include <wchar.h>
@@ -119,7 +112,7 @@ class Task
 {
 public:
     int id;
-    int webp;
+    //int webp;
     int scale;
 
     path_t inpath;
@@ -200,78 +193,29 @@ void* load(void* args)
     {
         const path_t& imagepath = ltp->input_files[i];
 
-        int webp = 0;
-
-        unsigned char* pixeldata = 0;
-        int w;
-        int h;
-        int c;
-
-#if _WIN32
-        FILE* fp = _wfopen(imagepath.c_str(), L"rb");
-#else
-        FILE* fp = fopen(imagepath.c_str(), "rb");
-#endif
-        if (fp)
-        {
-            // read whole file
-            unsigned char* filedata = 0;
-            int length = 0;
-            {
-                fseek(fp, 0, SEEK_END);
-                length = ftell(fp);
-                rewind(fp);
-                filedata = (unsigned char*)malloc(length);
-                if (filedata)
-                {
-                    fread(filedata, 1, length, fp);
-                }
-                fclose(fp);
+        std::string path(imagepath.begin(), imagepath.end());
+        FILE* file = fopen(path.c_str(), "rb");
+        unsigned char* filedata = 0;
+        int length = 0;
+        if (file) {
+            fseek(file, 0, SEEK_END);
+            length = ftell(file);
+            rewind(file);
+            filedata = (unsigned char*)malloc(length);
+            if (filedata) {
+                fread(filedata, 1, length, file);
             }
-
-            if (filedata)
-            {
-                pixeldata = webp_load(filedata, length, &w, &h, &c);
-                if (pixeldata)
-                {
-                    webp = 1;
-                }
-                else
-                {
-                    // not webp, try jpg png etc.
-#if _WIN32
-                    pixeldata = wic_decode_image(imagepath.c_str(), &w, &h, &c);
-#else // _WIN32
-                    pixeldata = stbi_load_from_memory(filedata, length, &w, &h, &c, 0);
-                    if (pixeldata)
-                    {
-                        // stb_image auto channel
-                        if (c == 1)
-                        {
-                            // grayscale -> rgb
-                            stbi_image_free(pixeldata);
-                            pixeldata = stbi_load_from_memory(filedata, length, &w, &h, &c, 3);
-                            c = 3;
-                        }
-                        else if (c == 2)
-                        {
-                            // grayscale + alpha -> rgba
-                            stbi_image_free(pixeldata);
-                            pixeldata = stbi_load_from_memory(filedata, length, &w, &h, &c, 4);
-                            c = 4;
-                        }
-                    }
-#endif // _WIN32
-                }
-
-                free(filedata);
-            }
+            fclose(file);
         }
-        if (pixeldata)
-        {
+
+        if (1) {
+            unsigned char* pixeldata = 0;
+            int w, h, c;
+            pixeldata = stbi_load_from_memory(filedata, length, &w, &h, &c, 0);
+
             Task v;
             v.id = i;
-            v.webp = webp;
+            //v.webp = webp;
             v.scale = scale;
             v.inpath = imagepath;
             v.outpath = ltp->output_files[i];
@@ -279,27 +223,28 @@ void* load(void* args)
             v.inimage = ncnn::Mat(w, h, (void*)pixeldata, (size_t)c, c);
 
             path_t ext = get_file_extension(v.outpath);
-            if (c == 4 && (ext == PATHSTR("jpg") || ext == PATHSTR("JPG") || ext == PATHSTR("jpeg") || ext == PATHSTR("JPEG")))
-            {
+            if (c == 4 && (ext == PATHSTR("jpg") || ext == PATHSTR("JPG") || ext == PATHSTR("jpeg") || ext == PATHSTR("JPEG"))) {
                 path_t output_filename2 = ltp->output_files[i] + PATHSTR(".png");
                 v.outpath = output_filename2;
-#if _WIN32
+                #if _WIN32
                 fwprintf(stderr, L"image %ls has alpha channel ! %ls will output %ls\n", imagepath.c_str(), imagepath.c_str(), output_filename2.c_str());
-#else // _WIN32
+                #else // _WIN32
                 fprintf(stderr, "image %s has alpha channel ! %s will output %s\n", imagepath.c_str(), imagepath.c_str(), output_filename2.c_str());
-#endif // _WIN32
+                #endif // _WIN32
             }
 
             toproc.put(v);
-        }
-        else
-        {
-#if _WIN32
+        } else {
+            #if _WIN32
             fwprintf(stderr, L"decode image %ls failed\n", imagepath.c_str());
-#else // _WIN32
+            #else // _WIN32
             fprintf(stderr, "decode image %s failed\n", imagepath.c_str());
-#endif // _WIN32
+            #endif // _WIN32
         }
+
+        free(filedata);
+
+        //delete dib;
     }
 
     return 0;
@@ -396,11 +341,11 @@ void* save(void* args)
         // free input pixel data
         {
             unsigned char* pixeldata = (unsigned char*)v.inimage.data;
-            if (v.webp == 1)
+            /*if (v.webp == 1)
             {
                 free(pixeldata);
             }
-            else
+            else*/
             {
 #if _WIN32
                 free(pixeldata);
@@ -414,25 +359,15 @@ void* save(void* args)
 
         path_t ext = get_file_extension(v.outpath);
 
-        if (ext == PATHSTR("webp") || ext == PATHSTR("WEBP"))
+        std::string path(v.outpath.begin(), v.outpath.end());
+
+        if (ext == PATHSTR("png") || ext == PATHSTR("PNG"))
         {
-            success = webp_save(v.outpath.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, (const unsigned char*)v.outimage.data);
-        }
-        else if (ext == PATHSTR("png") || ext == PATHSTR("PNG"))
-        {
-#if _WIN32
-            success = wic_encode_image(v.outpath.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data);
-#else
-            success = stbi_write_png(v.outpath.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data, 0);
-#endif
+            success = stbi_write_png(path.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data, 0);
         }
         else if (ext == PATHSTR("jpg") || ext == PATHSTR("JPG") || ext == PATHSTR("jpeg") || ext == PATHSTR("JPEG"))
         {
-#if _WIN32
-            success = wic_encode_jpeg_image(v.outpath.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data);
-#else
-            success = stbi_write_jpg(v.outpath.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data, 100);
-#endif
+            success = stbi_write_jpg(path.c_str(), v.outimage.w, v.outimage.h, v.outimage.elempack, v.outimage.data, 100);
         }
         if (success)
         {
@@ -465,8 +400,8 @@ int wmain(int argc, wchar_t** argv)
 int main(int argc, char** argv)
 #endif
 {
-    path_t inputpath;
-    path_t outputpath;
+    path_t inputpath = PATHSTR("A:\\ts\\m1.png");
+    path_t outputpath = PATHSTR("A:\\ts\\rw2aq.png");
     int noise = 0;
     int scale = 2;
     std::vector<int> tilesize;
@@ -478,101 +413,7 @@ int main(int argc, char** argv)
     int verbose = 0;
     int tta_mode = 0;
     path_t format = PATHSTR("png");
-
-#if _WIN32
     setlocale(LC_ALL, "");
-    wchar_t opt;
-    while ((opt = getopt(argc, argv, L"i:o:n:s:t:m:g:j:f:vxh")) != (wchar_t)-1)
-    {
-        switch (opt)
-        {
-        case L'i':
-            inputpath = optarg;
-            break;
-        case L'o':
-            outputpath = optarg;
-            break;
-        case L'n':
-            noise = _wtoi(optarg);
-            break;
-        case L's':
-            scale = _wtoi(optarg);
-            break;
-        case L't':
-            tilesize = parse_optarg_int_array(optarg);
-            break;
-        case L'm':
-            model = optarg;
-            break;
-        case L'g':
-            gpuid = parse_optarg_int_array(optarg);
-            break;
-        case L'j':
-            swscanf(optarg, L"%d:%*[^:]:%d", &jobs_load, &jobs_save);
-            jobs_proc = parse_optarg_int_array(wcschr(optarg, L':') + 1);
-            break;
-        case L'f':
-            format = optarg;
-            break;
-        case L'v':
-            verbose = 1;
-            break;
-        case L'x':
-            tta_mode = 1;
-            break;
-        case L'h':
-        default:
-            print_usage();
-            return -1;
-        }
-    }
-#else // _WIN32
-    int opt;
-    while ((opt = getopt(argc, argv, "i:o:n:s:t:m:g:j:f:vxh")) != -1)
-    {
-        switch (opt)
-        {
-        case 'i':
-            inputpath = optarg;
-            break;
-        case 'o':
-            outputpath = optarg;
-            break;
-        case 'n':
-            noise = atoi(optarg);
-            break;
-        case 's':
-            scale = atoi(optarg);
-            break;
-        case 't':
-            tilesize = parse_optarg_int_array(optarg);
-            break;
-        case 'm':
-            model = optarg;
-            break;
-        case 'g':
-            gpuid = parse_optarg_int_array(optarg);
-            break;
-        case 'j':
-            sscanf(optarg, "%d:%*[^:]:%d", &jobs_load, &jobs_save);
-            jobs_proc = parse_optarg_int_array(strchr(optarg, ':') + 1);
-            break;
-        case 'f':
-            format = optarg;
-            break;
-        case 'v':
-            verbose = 1;
-            break;
-        case 'x':
-            tta_mode = 1;
-            break;
-        case 'h':
-        default:
-            print_usage();
-            return -1;
-        }
-    }
-#endif // _WIN32
 
     if (inputpath.empty() || outputpath.empty())
     {
@@ -750,18 +591,18 @@ int main(int argc, char** argv)
     wchar_t modelpath[256];
     if (noise == -1)
     {
-        swprintf(parampath, 256, L"%s/scale2.0x_model.param", model.c_str());
-        swprintf(modelpath, 256, L"%s/scale2.0x_model.bin", model.c_str());
+        swprintf(parampath, 256, L"models/%s/scale2.0x_model.param", model.c_str());
+        swprintf(modelpath, 256, L"models/%s/scale2.0x_model.bin", model.c_str());
     }
     else if (scale == 1)
     {
-        swprintf(parampath, 256, L"%s/noise%d_model.param", model.c_str(), noise);
-        swprintf(modelpath, 256, L"%s/noise%d_model.bin", model.c_str(), noise);
+        swprintf(parampath, 256, L"models/%s/noise%d_model.param", model.c_str(), noise);
+        swprintf(modelpath, 256, L"models/%s/noise%d_model.bin", model.c_str(), noise);
     }
     else if (scale == 2 || scale == 4 || scale == 8 || scale == 16 || scale == 32)
     {
-        swprintf(parampath, 256, L"%s/noise%d_scale2.0x_model.param", model.c_str(), noise);
-        swprintf(modelpath, 256, L"%s/noise%d_scale2.0x_model.bin", model.c_str(), noise);
+        swprintf(parampath, 256, L"models/%s/noise%d_scale2.0x_model.param", model.c_str(), noise);
+        swprintf(modelpath, 256, L"models/%s/noise%d_scale2.0x_model.bin", model.c_str(), noise);
     }
 #else
     char parampath[256];
@@ -786,9 +627,9 @@ int main(int argc, char** argv)
     path_t paramfullpath = sanitize_filepath(parampath);
     path_t modelfullpath = sanitize_filepath(modelpath);
 
-#if _WIN32
-    CoInitializeEx(NULL, COINIT_MULTITHREADED);
-#endif
+//#if _WIN32
+//    CoInitializeEx(NULL, COINIT_MULTITHREADED);
+//#endif
 
     ncnn::create_gpu_instance();
 

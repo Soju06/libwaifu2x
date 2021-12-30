@@ -1,36 +1,45 @@
+cmake_minimum_required(VERSION 3.9)
 cmake_policy(SET CMP0091 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(waifu2x-ncnn-vulkan)
+project(waifu2x-lib VERSION 0.0.01 DESCRIPTION "waifu2x-ncnn-vulkan library")
 
-cmake_minimum_required(VERSION 3.9)
+message("build type: ${CMAKE_BUILD_TYPE}")
 
-set(CMAKE_BUILD_TYPE Release)
-
+# compile
 option(USE_SYSTEM_NCNN "build with system libncnn" OFF)
-option(USE_SYSTEM_WEBP "build with system libwebp" OFF)
-option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
+option(BUILD_EXECUTABLE_ "Build an executable '.exe' file" ON)
+option(BUILD_DYNAMIC_LIBRARY "When ON, it builds as a .dll file. When OFF, build as a static library." ON)
+
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(OUTPUT_DIR "../build/debug")
+else()
+    set(OUTPUT_DIR "../build/release")
+endif()
+
+# models
+set(MODELS_DIR "../models")
+get_filename_component(MODELS_DIR ${MODELS_DIR} ABSOLUTE)
+message("models dir: ${MODELS_DIR}")
+
+# shader
+set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shader)
+
+# create output dir
+FILE(MAKE_DIRECTORY ${OUTPUT_DIR})
+get_filename_component(CMAKE_BINARY_DIR ${OUTPUT_DIR} ABSOLUTE)
+message("binary out dir: ${CMAKE_BINARY_DIR}")
+# create binary dir
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+
+set(RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${RUNTIME_DIR})
 
 find_package(Threads)
 find_package(OpenMP)
 find_package(Vulkan REQUIRED)
-
-macro(waifu2x_add_shader SHADER_SRC)
-    get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
-    set(SHADER_COMP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/${SHADER_SRC_NAME_WE}.comp.hex.h)
-
-    add_custom_command(
-        OUTPUT ${SHADER_COMP_HEADER}
-        COMMAND ${CMAKE_COMMAND} -DSHADER_SRC=${CMAKE_CURRENT_SOURCE_DIR}/${SHADER_SRC} -DSHADER_COMP_HEADER=${SHADER_COMP_HEADER} -P "${CMAKE_CURRENT_SOURCE_DIR}/generate_shader_comp_header.cmake"
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/${SHADER_SRC}
-        COMMENT "Preprocessing shader source ${SHADER_SRC_NAME_WE}.comp"
-        VERBATIM
-    )
-    set_source_files_properties(${SHADER_COMP_HEADER} PROPERTIES GENERATED TRUE)
-
-    list(APPEND SHADER_SPV_HEX_FILES ${SHADER_COMP_HEADER})
-endmacro()
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
@@ -87,7 +96,7 @@ endif()
 
 if(NOT USE_SYSTEM_NCNN)
     # build ncnn library
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ncnn/CMakeLists.txt")
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/library/ncnn/CMakeLists.txt")
         message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init --recursive\" and try again.")
     endif()
 
@@ -187,42 +196,24 @@ if(NOT USE_SYSTEM_NCNN)
     option(WITH_LAYER_multiheadattention "" OFF)
     option(WITH_LAYER_gelu "" OFF)
 
-    add_subdirectory(ncnn)
+    add_subdirectory(library/ncnn)
 endif()
 
-if(USE_SYSTEM_WEBP)
-    set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}")
-    find_package(WebP)
-    if(NOT TARGET webp)
-        message(WARNING "webp target not found! USE_SYSTEM_WEBP will be turned off.")
-        set(USE_SYSTEM_WEBP OFF)
-    endif()
-endif()
+macro(waifu2x_add_shader SHADER_SRC)
+    get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
+    set(SHADER_COMP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/shader/${SHADER_SRC_NAME_WE}.comp.hex.h)
 
-if(NOT USE_SYSTEM_WEBP)
-    # build libwebp library
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libwebp/CMakeLists.txt")
-        message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init --recursive\" and try again.")
-    endif()
+    add_custom_command(
+        OUTPUT ${SHADER_COMP_HEADER}
+        COMMAND ${CMAKE_COMMAND} -DSHADER_SRC=${SHADER_DIR}/${SHADER_SRC} -DSHADER_COMP_HEADER=${SHADER_COMP_HEADER} -P "${SHADER_DIR}/generate_shader_comp_header.cmake"
+        DEPENDS ${SHADER_DIR}/${SHADER_SRC}
+        COMMENT "Preprocessing shader source ${SHADER_SRC_NAME_WE}.comp"
+        VERBATIM
+    )
+    set_source_files_properties(${SHADER_COMP_HEADER} PROPERTIES GENERATED TRUE)
 
-    option(WEBP_ENABLE_SIMD "" ON)
-    option(WEBP_BUILD_ANIM_UTILS "" OFF)
-    option(WEBP_BUILD_CWEBP "" OFF)
-    option(WEBP_BUILD_DWEBP "" OFF)
-    option(WEBP_BUILD_GIF2WEBP "" OFF)
-    option(WEBP_BUILD_IMG2WEBP "" OFF)
-    option(WEBP_BUILD_VWEBP "" OFF)
-    option(WEBP_BUILD_WEBPINFO "" OFF)
-    option(WEBP_BUILD_WEBPMUX "" OFF)
-    option(WEBP_BUILD_EXTRAS "" OFF)
-    option(WEBP_BUILD_WEBP_JS "" OFF)
-    option(WEBP_NEAR_LOSSLESS "" OFF)
-    option(WEBP_ENABLE_SWAP_16BIT_CSP "" OFF)
-
-    add_subdirectory(libwebp)
-
-    include_directories(${CMAKE_CURRENT_SOURCE_DIR}/libwebp/src)
-endif()
+    list(APPEND SHADER_SPV_HEX_FILES ${SHADER_COMP_HEADER})
+endmacro()
 
 waifu2x_add_shader(waifu2x_preproc.comp)
 waifu2x_add_shader(waifu2x_postproc.comp)
@@ -231,32 +222,28 @@ waifu2x_add_shader(waifu2x_postproc_tta.comp)
 
 add_custom_target(generate-spirv DEPENDS ${SHADER_SPV_HEX_FILES})
 
-add_executable(waifu2x-ncnn-vulkan main.cpp waifu2x.cpp)
+# include stb library
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/library/stb/stb_image.h")
+    message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init\" and try again.")
+endif()
+include_directories(library/stb)
 
-add_dependencies(waifu2x-ncnn-vulkan generate-spirv)
+file(GLOB SOURCE_CODES "*.h" "*.cpp")
 
-set(WAIFU2X_LINK_LIBRARIES ncnn webp ${Vulkan_LIBRARY})
-
-if(USE_STATIC_MOLTENVK)
-    find_library(CoreFoundation NAMES CoreFoundation)
-    find_library(Foundation NAMES Foundation)
-    find_library(Metal NAMES Metal)
-    find_library(QuartzCore NAMES QuartzCore)
-    find_library(CoreGraphics NAMES CoreGraphics)
-    find_library(Cocoa NAMES Cocoa)
-    find_library(IOKit NAMES IOKit)
-    find_library(IOSurface NAMES IOSurface)
-
-    list(APPEND WAIFU2X_LINK_LIBRARIES
-        ${Metal}
-        ${QuartzCore}
-        ${CoreGraphics}
-        ${Cocoa}
-        ${IOKit}
-        ${IOSurface}
-        ${Foundation}
-        ${CoreFoundation}
-    )
+if (BUILD_EXECUTABLE_)
+    add_executable(waifu2x-lib ${SOURCE_CODES})
+elseif(BUILD_DYNAMIC_LIBRARY)
+    add_library(waifu2x-lib SHARED ${SOURCE_CODES})
+else()
+    add_library(waifu2x-lib STATIC ${SOURCE_CODES})
 endif()
 
-target_link_libraries(waifu2x-ncnn-vulkan ${WAIFU2X_LINK_LIBRARIES})
+message("sources: ${SOURCE_CODES}")
+add_dependencies(waifu2x-lib generate-spirv)
+
+
+set(WAIFU2X_LINK_LIBRARIES ncnn ${Vulkan_LIBRARY})
+target_link_libraries(waifu2x-lib ${WAIFU2X_LINK_LIBRARIES})
+
+#copy model files
+file(COPY ${MODELS_DIR} DESTINATION ${RUNTIME_DIR})

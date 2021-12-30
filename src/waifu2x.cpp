@@ -5,10 +5,10 @@
 #include <algorithm>
 #include <vector>
 
-#include "waifu2x_preproc.comp.hex.h"
-#include "waifu2x_postproc.comp.hex.h"
-#include "waifu2x_preproc_tta.comp.hex.h"
-#include "waifu2x_postproc_tta.comp.hex.h"
+#include "shader/waifu2x_preproc.comp.hex.h"
+#include "shader/waifu2x_postproc.comp.hex.h"
+#include "shader/waifu2x_preproc_tta.comp.hex.h"
+#include "shader/waifu2x_postproc_tta.comp.hex.h"
 
 Waifu2x::Waifu2x(int gpuid, bool _tta_mode, int num_threads)
 {
