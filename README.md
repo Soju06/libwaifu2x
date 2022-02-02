@@ -105,6 +105,12 @@ stb 라이브러리를 사용하지 않고 C# 네이티브 비트맵으로 로�
 
 ## How to Build
 
+### Build from Colab
+
+[here](https://colab.research.google.com/drive/18C_V_OW0d6IpUbrheTClL2HKYhhEdx7f?usp=sharing)
+
+### Common
+
 1. Vulkan SDK를 설치합니다.
 
    Windows
