@@ -14,9 +14,9 @@
 ## Download
 | Language | System  | x86  |                 x64                 |
 | :------: | :-----: | :--: | :---------------------------------: |
-|  C/C++   | Windows |  ❌   |           libwaifu2x.dll            |
-|  C/C++   |  Linux  |  ❌   |            libwaifu2x.so            |
-|  Csharp  | Windows |  ❌   | libwaifu2x.NET.dll + libwaifu2x.dll |
+|  C/C++   | Windows |  ❌   |           [libwaifu2x.dll](https://github.com/Soju06/libwaifu2x/releases/download/0.0.1/c-dynamic-0.0.1-windows.zip)            |
+|  C/C++   |  Linux  |  ❌   |            [libwaifu2x.so](https://github.com/Soju06/libwaifu2x/releases/download/0.0.1/c-shared-0.0.1-linux.zip)            |
+|  Csharp  | Windows |  ❌   | [libwaifu2x.NET.dll + libwaifu2x.dll](https://github.com/Soju06/libwaifu2x/releases/download/0.0.1/netstandard2.1-0.0.1-windows.zip) |
 |  Csharp  |  Linux  |  ❌   |                  ❌                  |
 |  Python  | Windows |  --  |                 --                  |
 |  Python  |  Linux  |  --  |                 --                  |
