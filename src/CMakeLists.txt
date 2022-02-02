@@ -1,41 +1,103 @@
 cmake_minimum_required(VERSION 3.9)
+
 cmake_policy(SET CMP0091 NEW)
 set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(waifu2x-lib VERSION 0.0.01 DESCRIPTION "waifu2x-ncnn-vulkan library")
+project(libwaifu2x VERSION 0.0.1 DESCRIPTION "waifu2x-ncnn-vulkan library")
 
 message("build type: ${CMAKE_BUILD_TYPE}")
 
-# compile
-option(USE_SYSTEM_NCNN "build with system libncnn" OFF)
-option(BUILD_EXECUTABLE_ "Build an executable '.exe' file" ON)
-option(BUILD_DYNAMIC_LIBRARY "When ON, it builds as a .dll file. When OFF, build as a static library." ON)
+get_directory_property(HAS_PARENT PARENT_DIRECTORY)
 
-if (CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(OUTPUT_DIR "../build/debug")
-else()
-    set(OUTPUT_DIR "../build/release")
+################################################################
+########################### options ############################
+################################################################
+
+# ON: build with system libncnn
+option(USE_SYSTEM_NCNN "build with system libncnn" FALSE)
+# Options to avoid vulkan loader library links in MacOS
+option(USE_STATIC_MOLTENVK "link moltenvk static library" OFF)
+
+if(NOT DEFINED WAIFU2X_BUILD_TYPE)
+    # compile type: executable, dynamic_library, static_library
+    if(NOT "${HAS_PARENT}" STREQUAL "")
+        set(WAIFU2X_BUILD_TYPE "static_library")
+    else()
+        set(WAIFU2X_BUILD_TYPE "dynamic_library")
+    endif()
+endif()
+if(NOT DEFINED WAIFU2X_COPY_MODEL_FILE)
+    # ON: Copy the model file to the output folder.
+    set(WAIFU2X_COPY_MODEL_FILE true)
 endif()
 
-# models
-set(MODELS_DIR "../models")
-get_filename_component(MODELS_DIR ${MODELS_DIR} ABSOLUTE)
-message("models dir: ${MODELS_DIR}")
+set(CMAKE_CXX_STANDARD 23)
 
-# shader
-set(SHADER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/shader)
+################################################################
+####################### build directory ########################
+################################################################
 
-# create output dir
+if (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(OUTPUT_DIR "${CMAKE_CURRENT_LIST_DIR}/build/debug")
+else()
+    set(OUTPUT_DIR "${CMAKE_CURRENT_LIST_DIR}/build/release")
+endif()
+
+# create binary dir
 FILE(MAKE_DIRECTORY ${OUTPUT_DIR})
 get_filename_component(CMAKE_BINARY_DIR ${OUTPUT_DIR} ABSOLUTE)
-message("binary out dir: ${CMAKE_BINARY_DIR}")
-# create binary dir
+set(RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
+set(INCLUDE_DIR ${CMAKE_BINARY_DIR}/include)
+
+# create library dir
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-
-set(RUNTIME_DIR ${CMAKE_BINARY_DIR}/bin)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${RUNTIME_DIR})
+
+message("binary out dir: ${CMAKE_BINARY_DIR}")
+
+################################################################
+############################ model #############################
+################################################################
+
+set(MODELS_DIR "${CMAKE_CURRENT_LIST_DIR}/../models")
+get_filename_component(MODELS_DIR ${MODELS_DIR} ABSOLUTE)
+
+message("models dir: ${MODELS_DIR}")
+
+if (${WAIFU2X_COPY_MODEL_FILE})
+    if(NOT EXISTS "${MODELS_DIR}")
+        message(FATAL_ERROR "The model folder does not exist!")
+    endif()
+
+    if ("${WAIFU2X_BUILD_TYPE}" STREQUAL "static_library")
+        file(COPY ${MODELS_DIR} DESTINATION ${CMAKE_LIBRARY_OUTPUT_DIRECTORY})
+    else()
+        file(COPY ${MODELS_DIR} DESTINATION ${CMAKE_RUNTIME_OUTPUT_DIRECTORY})
+    endif()
+endif()
+
+################################################################
+############################# IPO ##############################
+################################################################
+# enable global link time optimization
+cmake_policy(SET CMP0069 NEW)
+set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
+include(CheckIPOSupported)
+check_ipo_supported(RESULT ipo_supported OUTPUT ipo_supported_output)
+if(ipo_supported)
+    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
+else()
+    message(WARNING "IPO is not supported: ${ipo_supported_output}")
+endif()
+
+################################################################
+########################### library ############################
+################################################################
+
+set(LIBRARY_DIR ${CMAKE_CURRENT_LIST_DIR}/library)
+message("library dir: ${LIBRARY_DIR}")
 
 find_package(Threads)
 find_package(OpenMP)
@@ -49,18 +111,8 @@ if(OPENMP_FOUND)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-# enable global link time optimization
-cmake_policy(SET CMP0069 NEW)
-set(CMAKE_POLICY_DEFAULT_CMP0069 NEW)
-include(CheckIPOSupported)
-check_ipo_supported(RESULT ipo_supported OUTPUT ipo_supported_output)
-if(ipo_supported)
-    set(CMAKE_INTERPROCEDURAL_OPTIMIZATION TRUE)
-else()
-    message(WARNING "IPO is not supported: ${ipo_supported_output}")
-endif()
-
-if(USE_SYSTEM_NCNN)
+# NCNN
+if(${USE_SYSTEM_NCNN})
     set(GLSLANG_TARGET_DIR "GLSLANG-NOTFOUND" CACHE PATH "Absolute path to glslangTargets.cmake directory")
     if(NOT GLSLANG_TARGET_DIR AND NOT DEFINED ENV{GLSLANG_TARGET_DIR})
         message(WARNING "GLSLANG_TARGET_DIR must be defined! USE_SYSTEM_NCNN will be turned off.")
@@ -84,19 +136,15 @@ if(USE_SYSTEM_NCNN)
             set(USE_SYSTEM_NCNN OFF)
         endif()
     endif()
-endif()
 
-if(USE_SYSTEM_NCNN)
     find_package(ncnn)
     if(NOT TARGET ncnn)
         message(WARNING "ncnn target not found! USE_SYSTEM_NCNN will be turned off.")
         set(USE_SYSTEM_NCNN OFF)
     endif()
-endif()
-
-if(NOT USE_SYSTEM_NCNN)
+else()
     # build ncnn library
-    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/library/ncnn/CMakeLists.txt")
+    if(NOT EXISTS "${LIBRARY_DIR}/ncnn/CMakeLists.txt")
         message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init --recursive\" and try again.")
     endif()
 
@@ -196,12 +244,25 @@ if(NOT USE_SYSTEM_NCNN)
     option(WITH_LAYER_multiheadattention "" OFF)
     option(WITH_LAYER_gelu "" OFF)
 
-    add_subdirectory(library/ncnn)
+    add_subdirectory(${LIBRARY_DIR}/ncnn)
 endif()
+
+# STB
+if(NOT EXISTS "${LIBRARY_DIR}/stb/stb_image.h")
+    message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init\" and try again.")
+endif()
+include_directories(${LIBRARY_DIR}/stb)
+
+################################################################
+########################### shader #############################
+################################################################
+
+set(SHADER_DIR ${CMAKE_CURRENT_LIST_DIR}/shader)
+message("shader dir: ${SHADER_DIR}")
 
 macro(waifu2x_add_shader SHADER_SRC)
     get_filename_component(SHADER_SRC_NAME_WE ${SHADER_SRC} NAME_WE)
-    set(SHADER_COMP_HEADER ${CMAKE_CURRENT_BINARY_DIR}/shader/${SHADER_SRC_NAME_WE}.comp.hex.h)
+    set(SHADER_COMP_HEADER ${SHADER_DIR}/${SHADER_SRC_NAME_WE}.comp.hex.h)
 
     add_custom_command(
         OUTPUT ${SHADER_COMP_HEADER}
@@ -222,28 +283,85 @@ waifu2x_add_shader(waifu2x_postproc_tta.comp)
 
 add_custom_target(generate-spirv DEPENDS ${SHADER_SPV_HEX_FILES})
 
-# include stb library
-if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/library/stb/stb_image.h")
-    message(FATAL_ERROR "The submodules were not downloaded! Please update submodules with \"git submodule update --init\" and try again.")
-endif()
-include_directories(library/stb)
+################################################################
+############################ build #############################
+################################################################
 
-file(GLOB SOURCE_CODES "*.h" "*.cpp")
+file(GLOB SOURCE_CODES "${CMAKE_CURRENT_LIST_DIR}/*.h" "${CMAKE_CURRENT_LIST_DIR}/*.cpp")
 
-if (BUILD_EXECUTABLE_)
-    add_executable(waifu2x-lib ${SOURCE_CODES})
-elseif(BUILD_DYNAMIC_LIBRARY)
-    add_library(waifu2x-lib SHARED ${SOURCE_CODES})
+if ("${WAIFU2X_BUILD_TYPE}" STREQUAL "static_library")
+    add_library(libwaifu2x STATIC ${SOURCE_CODES})
+    message("output type: static library")
+elseif("${WAIFU2X_BUILD_TYPE}" STREQUAL "dynamic_library")
+    add_library(libwaifu2x SHARED ${SOURCE_CODES})
+    message("output type: dynamic library")
 else()
-    add_library(waifu2x-lib STATIC ${SOURCE_CODES})
+    add_executable(libwaifu2x ${SOURCE_CODES})
+    message("output type: executable")
 endif()
 
-message("sources: ${SOURCE_CODES}")
-add_dependencies(waifu2x-lib generate-spirv)
+message("include header dir: ${INCLUDE_DIR}")
+file(GLOB INCLUDE_HEADER_CODES "${CMAKE_CURRENT_LIST_DIR}/*.h")
+file(COPY ${INCLUDE_HEADER_CODES} DESTINATION ${INCLUDE_DIR})
 
+################################################################
+############################# link #############################
+################################################################
 
+if(USE_STATIC_MOLTENVK)
+    find_library(CoreFoundation NAMES CoreFoundation)
+    find_library(Foundation NAMES Foundation)
+    find_library(Metal NAMES Metal)
+    find_library(QuartzCore NAMES QuartzCore)
+    find_library(CoreGraphics NAMES CoreGraphics)
+    find_library(Cocoa NAMES Cocoa)
+    find_library(IOKit NAMES IOKit)
+    find_library(IOSurface NAMES IOSurface)
+
+    list(APPEND WAIFU2X_LINK_LIBRARIES
+        ${Metal}
+        ${QuartzCore}
+        ${CoreGraphics}
+        ${Cocoa}
+        ${IOKit}
+        ${IOSurface}
+        ${Foundation}
+        ${CoreFoundation}
+    )
+endif()
+# shader
+add_dependencies(libwaifu2x generate-spirv)
+# ncnn
 set(WAIFU2X_LINK_LIBRARIES ncnn ${Vulkan_LIBRARY})
-target_link_libraries(waifu2x-lib ${WAIFU2X_LINK_LIBRARIES})
 
-#copy model files
-file(COPY ${MODELS_DIR} DESTINATION ${RUNTIME_DIR})
+if(USE_STATIC_MOLTENVK)
+    find_library(CoreFoundation NAMES CoreFoundation)
+    find_library(Foundation NAMES Foundation)
+    find_library(Metal NAMES Metal)
+    find_library(QuartzCore NAMES QuartzCore)
+    find_library(CoreGraphics NAMES CoreGraphics)
+    find_library(Cocoa NAMES Cocoa)
+    find_library(IOKit NAMES IOKit)
+    find_library(IOSurface NAMES IOSurface)
+
+    list(APPEND WAIFU2X_LINK_LIBRARIES
+        ${Metal}
+        ${QuartzCore}
+        ${CoreGraphics}
+        ${Cocoa}
+        ${IOKit}
+        ${IOSurface}
+        ${Foundation}
+        ${CoreFoundation}
+    )
+endif()
+
+target_link_libraries(libwaifu2x PUBLIC ${WAIFU2X_LINK_LIBRARIES})
+target_include_directories(libwaifu2x PUBLIC ${CMAKE_CURRENT_LIST_DIR})
+
+################################################################
+######################### parent scope #########################
+################################################################
+
+set(WAIFU2X_LINK_LIBRARIES ${WAIFU2X_LINK_LIBRARIES} PARENT_SCOPE)
+set(WAIFU2X_MODEL_DIR ${MODELS_DIR} PARENT_SCOPE)

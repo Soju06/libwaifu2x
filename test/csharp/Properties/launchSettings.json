@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "waifu2x-wrapper.test": {
+      "commandName": "Project",
+      "nativeDebugging": true
+    }
+  }
+}

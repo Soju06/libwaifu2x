@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.1.32113.165
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "waifu2x.test", "test\csharp\waifu2x.test.csproj", "{BFEB4D76-EA24-48D3-A5F7-1F134EF2D877}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "libwaifu2x.NET", "wrapper\csharp\libwaifu2x.NET.csproj", "{3D9AF174-8909-4ACF-9097-DB20271BCE0D}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BFEB4D76-EA24-48D3-A5F7-1F134EF2D877}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BFEB4D76-EA24-48D3-A5F7-1F134EF2D877}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BFEB4D76-EA24-48D3-A5F7-1F134EF2D877}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BFEB4D76-EA24-48D3-A5F7-1F134EF2D877}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3D9AF174-8909-4ACF-9097-DB20271BCE0D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3D9AF174-8909-4ACF-9097-DB20271BCE0D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3D9AF174-8909-4ACF-9097-DB20271BCE0D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3D9AF174-8909-4ACF-9097-DB20271BCE0D}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {B0982492-6362-4108-A78E-C4F9445AA096}
+	EndGlobalSection
+EndGlobal
