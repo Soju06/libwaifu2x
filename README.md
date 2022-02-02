@@ -1,4 +1,4 @@
-# waifu2x-lib
+# libwaifu2x
 이 프로젝트는 [waifu2x-ncnn-vulkan](https://github.com/nihui/waifu2x-ncnn-vulkan)에서 포크되었습니다.
 
 |    System     | C/C++ | Csharp | Python ❌ |
