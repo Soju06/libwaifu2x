@@ -105,7 +105,7 @@ stb 라이브러리를 사용하지 않고 C# 네이티브 비트맵으로 로�
 
 ## How to Build
 
-<a href="https://colab.research.google.com/drive/18C_V_OW0d6IpUbrheTClL2HKYhhEdx7f?usp=sharing"><h3>Build from Colab</h3></a>
+[Build from Colab](https://colab.research.google.com/drive/18C_V_OW0d6IpUbrheTClL2HKYhhEdx7f?usp=sharing)
 
 ### Common
 
